@@ -21,6 +21,6 @@ class Lecture(LectureBase):
 class QuestionResponse(BaseModel):
     question: str
     answer: str
+    audio_url: Optional[str] = None     # Added this field with default None
     sources: Optional[List[str]] = None
     confidence_score: Optional[float] = None
-    audio_url: Optional[str] = None
