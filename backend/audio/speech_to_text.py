@@ -8,10 +8,11 @@ logger = logging.getLogger(__name__)
 class SpeechToText:
     def __init__(self):
         try:
-            # Simplified initialization with only required parameters
+            # Optimized model for speed and accuracy
             self.model = WhisperModel(
-                "tiny",  # Using tiny model for faster processing
-                device="cpu"
+                "base.en",          # Switch to base.en for better balance
+                device="cpu",       # Ensure it runs efficiently on CPU
+                compute_type="int8" # Optimize for CPU with int8 precision
             )
             logger.info("Speech to text model initialized successfully")
         except Exception as e:
@@ -22,20 +23,21 @@ class SpeechToText:
         """Convert speech to text"""
         try:
             logger.info(f"Processing audio file: {audio_file}")
-            
-            # Transcribe audio
+
+            # Transcribe audio with faster parameters
             segments, _ = self.model.transcribe(
                 str(audio_file),
-                language="en"
+                language="en",
+                word_timestamps=False,
+                vad_filter=True  # Use voice activity detection for cleaner results
             )
-            
-            # Join segments
-            text = " ".join([segment.text for segment in segments])
-            text = text.strip()
-            
+
+            # Join segments into a single text output
+            text = " ".join([segment.text.strip() for segment in segments])
+
             logger.info(f"Successfully transcribed audio to: {text[:50]}...")
             return text
-            
+
         except Exception as e:
             logger.error(f"Error in speech to text conversion: {str(e)}")
             raise

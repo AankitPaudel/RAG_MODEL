@@ -65,7 +65,7 @@ class RAGProcessor:
             logger.error(f"Error processing lecture: {str(e)}")
             raise
 
-    async def find_relevant_context(self, question: str, num_chunks: int = 3):
+    async def find_relevant_context(self, question: str, num_chunks: int = 2):  # Reduced from 3
         """Find relevant context for a question"""
         try:
             # Check if there's any data in the vector store
@@ -73,22 +73,24 @@ class RAGProcessor:
             if collection.count() == 0:
                 logger.warning("Vector store is empty - no lectures loaded")
                 return []
-                
-            # Perform similarity search
+
+            # Perform similarity search with optimized settings
             results = self.vector_store.similarity_search(
                 question,
-                k=num_chunks
+                k=num_chunks,  # Reduced from 3 → 2 for faster lookup
+                fetch_k=5,  # Fetch more but return the top matches
+                score_threshold=0.2  # Ignore very weak matches
             )
-            
+
             # Format results
             context_docs = [{
                 "content": doc.page_content,
                 "metadata": doc.metadata
             } for doc in results]
-            
+
             logger.info(f"Found {len(context_docs)} relevant chunks for question")
             return context_docs
-            
+
         except Exception as e:
             logger.error(f"Error finding relevant context: {str(e)}")
             raise

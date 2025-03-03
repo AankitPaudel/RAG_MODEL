@@ -1,20 +1,24 @@
 // File: frontend/src/components/ResponsePlayer.jsx
 import React, { useState, useRef, useEffect } from 'react';
 
-export const ResponsePlayer = ({ audioUrl, autoPlay = false }) => {
+export const ResponsePlayer = ({ audioUrl, autoPlay = false, onComplete, onTranscriptionEnd }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [hasAutoPlayed, setHasAutoPlayed] = useState(false);  // Track first auto-play
     const audioRef = useRef(null);
 
-    // Effect for auto-play
+    // Auto-play when the audio URL changes (first time only)
     useEffect(() => {
-        if (audioUrl && autoPlay && audioRef.current) {
+        if (audioUrl && autoPlay && audioRef.current && !hasAutoPlayed) {
             setLoading(true);
             audioRef.current.play()
                 .then(() => {
                     setLoading(false);
                     setError(null);
+                    setIsPlaying(true);
+                    setHasAutoPlayed(true); // Ensure only first auto-play happens
+                    if (onTranscriptionEnd) onTranscriptionEnd(); // Clear transcribing
                 })
                 .catch(err => {
                     console.error('Auto-play error:', err);
@@ -22,16 +26,15 @@ export const ResponsePlayer = ({ audioUrl, autoPlay = false }) => {
                     setLoading(false);
                 });
         }
-    }, [audioUrl, autoPlay]);
+    }, [audioUrl, autoPlay, hasAutoPlayed, onTranscriptionEnd]);
 
-    // Effect to handle audio URL changes
-    useEffect(() => {
-        if (audioUrl) {
-            setError(null);
-            setLoading(true);
-        }
-    }, [audioUrl]);
+    // Reset transcribing state after audio ends
+    const handleAudioEnded = () => {
+        setIsPlaying(false);
+        if (onComplete) onComplete();  // Notify parent that playback is complete
+    };
 
+    // Toggle play/pause
     const togglePlay = () => {
         if (audioRef.current) {
             if (isPlaying) {
@@ -42,6 +45,7 @@ export const ResponsePlayer = ({ audioUrl, autoPlay = false }) => {
                     .then(() => {
                         setLoading(false);
                         setError(null);
+                        setIsPlaying(true);
                     })
                     .catch(err => {
                         console.error('Play error:', err);
@@ -52,51 +56,31 @@ export const ResponsePlayer = ({ audioUrl, autoPlay = false }) => {
         }
     };
 
-    const handleAudioLoaded = () => {
-        setLoading(false);
-        setError(null);
-    };
-
-    const handleAudioError = (e) => {
-        console.error('Audio error:', e);
-        setError('Error loading audio');
-        setLoading(false);
-    };
-
     return (
         <div className="audio-player">
-            {error && (
-                <div className="error-message text-red-500 text-sm mb-2">
-                    {error}
-                </div>
-            )}
+            {error && <div className="error-message text-red-500">{error}</div>}
+
             <audio
                 ref={audioRef}
                 src={audioUrl}
+                preload="metadata"
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                onEnded={() => setIsPlaying(false)}
-                onLoadedData={handleAudioLoaded}
-                onError={handleAudioError}
-                preload="auto"
+                onEnded={handleAudioEnded}
+                onError={() => setError('Error loading audio')}
+                onLoadedData={() => {
+                    setLoading(false);
+                    if (onTranscriptionEnd) onTranscriptionEnd();  // Clear transcribing after loading
+                }}
             />
-            <div className="flex items-center gap-2">
-                <button 
-                    onClick={togglePlay}
-                    className={`play-button px-4 py-2 rounded-md text-white 
-                        ${isPlaying 
-                            ? 'bg-red-500 hover:bg-red-600' 
-                            : 'bg-blue-500 hover:bg-blue-600'} 
-                        disabled:opacity-50 disabled:cursor-not-allowed
-                        transition duration-200`}
-                    disabled={!audioUrl || error || loading}
-                >
-                    {loading ? 'Loading...' : isPlaying ? 'Pause' : 'Play'} Response
-                </button>
-                {loading && (
-                    <div className="loading-spinner w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
-                )}
-            </div>
+
+            <button
+                onClick={togglePlay}
+                disabled={!audioUrl || loading}
+                className={`px-4 py-2 rounded-md ${isPlaying ? 'bg-red-500' : 'bg-blue-500'} text-white`}
+            >
+                {loading ? 'Loading...' : isPlaying ? 'Pause' : 'Play Response'}
+            </button>
         </div>
     );
 };
