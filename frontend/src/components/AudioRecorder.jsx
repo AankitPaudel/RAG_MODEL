@@ -1,6 +1,7 @@
 // frontend/src/components/AudioRecorder.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, MicOff, Loader } from 'lucide-react';
+const SILENCE_THRESHOLD = 0.08; // ← Adjust based on testing
 
 export const AudioRecorder = ({
     onTranscriptUpdate,
@@ -19,6 +20,19 @@ export const AudioRecorder = ({
     const analyzerNode = useRef(null);
     const lastAudioTime = useRef(Date.now());
     const silenceTimeoutRef = useRef(null);
+    const hasManuallyStopped = useRef(false); // Prevents double stop
+    const hasCompleted = useRef(false);
+
+
+    const finalizeRecording = () => {
+        if (hasCompleted.current) return;
+        hasCompleted.current = true;
+    
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/wav' });
+        const finalTranscript = recognitionRef.current?.resultText || '';
+        onRecordingComplete?.(audioBlob, finalTranscript);
+    };
+
 
     useEffect(() => {
         // Cleanup function
@@ -60,22 +74,28 @@ export const AudioRecorder = ({
         }
     };
 
+    let smoothedLevel = 0;
+    const smoothingFactor = 0.8;
+
     const checkAudioLevel = () => {
         if (!analyzerNode.current || !isRecording) return;
 
         const dataArray = new Uint8Array(analyzerNode.current.frequencyBinCount);
         analyzerNode.current.getByteFrequencyData(dataArray);
-        
+
         const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
         const normalizedLevel = average / 128;
-        
-        setAudioLevel(normalizedLevel);
 
-        if (normalizedLevel > 0.1) {
+        smoothedLevel = smoothingFactor * smoothedLevel + (1 - smoothingFactor) * normalizedLevel;
+
+        setAudioLevel(smoothedLevel);
+
+        if (smoothedLevel > SILENCE_THRESHOLD) {
             lastAudioTime.current = Date.now();
         } else {
             const timeSinceLastAudio = Date.now() - lastAudioTime.current;
-            if (timeSinceLastAudio >= silenceThreshold) {
+            if (timeSinceLastAudio >= silenceThreshold && !hasManuallyStopped.current) {
+                console.log('🔇 Auto-stopping due to smoothed silence');
                 stopRecording();
                 return;
             }
@@ -85,6 +105,7 @@ export const AudioRecorder = ({
             requestAnimationFrame(checkAudioLevel);
         }
     };
+
 
     const startRecording = async () => {
         try {
@@ -109,17 +130,19 @@ export const AudioRecorder = ({
             };
 
             mediaRecorder.current.onstop = () => {
-                const audioBlob = new Blob(audioChunks.current, { type: 'audio/wav' });
-                onRecordingComplete?.(audioBlob);
+                finalizeRecording();
             };
+                    
 
             // Initialize speech recognition
             initializeRecognition();
 
             // Start recording
+            hasManuallyStopped.current = false;
             mediaRecorder.current.start();
             recognitionRef.current?.start();
             setIsRecording(true);
+            hasCompleted.current = false;
             onRecordingStart?.();
             
             // Start monitoring audio levels
@@ -132,56 +155,31 @@ export const AudioRecorder = ({
         }
     };
 
-    const handleStopRecording = () => {
-        if (mediaRecorder.current?.state === 'recording') {
-            mediaRecorder.current.stop();
-            
-            // Get final transcript
-            const finalTranscript = recognitionRef.current?.resultText || '';
-            
-            // Create audio blob and pass both audio and transcript
-            const audioBlob = new Blob(audioChunks.current, { type: 'audio/wav' });
-            onRecordingComplete(audioBlob, finalTranscript);
-            
-            // Reset states
-            setIsRecording(false);
-            setAudioLevel(0);
-            
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
-            }
-            if (audioContext.current) {
-                audioContext.current.close();
-            }
-            if (silenceTimeoutRef.current) {
-                clearTimeout(silenceTimeoutRef.current);
-            }
-        }
-    };
+    
 
 
     const stopRecording = () => {
         try {
             if (mediaRecorder.current?.state === 'recording') {
-                mediaRecorder.current.stop();
+                mediaRecorder.current.stop(); // onstop will trigger finalizeRecording()
             }
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
-            }
-            if (audioContext.current) {
-                audioContext.current.close();
-            }
-
+    
+            recognitionRef.current?.stop();
+            audioContext.current?.close();
             setIsRecording(false);
             setAudioLevel(0);
-            
-            if (silenceTimeoutRef.current) {
-                clearTimeout(silenceTimeoutRef.current);
-            }
+            clearTimeout(silenceTimeoutRef.current);
+            hasCompleted.current = false; // ✅ Reset for next round
         } catch (error) {
             console.error('Error stopping recording:', error);
         }
     };
+    
+    
+    
+    
+    
+    
 
     const handleRecordButtonClick = () => {
         if (isRecording) {

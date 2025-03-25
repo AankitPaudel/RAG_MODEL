@@ -9,10 +9,15 @@ export const Message = ({ message, isLatest }) => {
     return (
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} gap-3 mx-4`}>
             {!isUser && (
-                <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                    <Bot className="w-5 h-5 text-white" />
-                </div>
-            )}
+    <div className="flex-shrink-0 w-10 h-10">
+        <img 
+            src="/images/professor-avatar.png" 
+            alt="Professor Avatar" 
+            className="w-full h-full object-cover rounded-full border-2 border-blue-500 shadow-sm"
+        />
+    </div>
+)}
+
             
             <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[80%]`}>
                 <div className={`px-4 py-2 rounded-2xl ${

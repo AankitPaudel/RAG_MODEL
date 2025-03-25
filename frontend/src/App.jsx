@@ -10,13 +10,7 @@ function MainContent() {
     
     return (
         <div className={`app ${theme}`}>
-            <header className="app-header">
-                <h1>Virtual Teacher</h1>
-                <nav className="app-nav">
-                    <ThemeToggle />
-                    <LanguageSelector />
-                </nav>
-            </header>
+            
             <main className="app-main">
                 <ChatInterface />
             </main>
